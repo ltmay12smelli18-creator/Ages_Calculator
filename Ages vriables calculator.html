@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Ages</title>
+<style>
+  :root{
+    --bg-light:#f4f4f4;--text-light:#000;--card-light:#fff;
+    --bg-dark:#1e1e1e;--text-dark:#e0e0e0;--card-dark:#2a2a2a;
+    --blue:#2196F3;
+  }
+  body{
+    font-family:Arial,sans-serif;display:flex;flex-direction:column;align-items:center;
+    padding:20px;transition:background-color .3s,color .3s;
+    background-color:var(--bg-light);color:var(--text-light);
+  }
+  body.dark{background-color:var(--bg-dark);color:var(--text-dark);}
+  .logo{width:220px;margin-bottom:10px;border-radius:10px;}
+  h1{margin:6px 0 14px 0;}
+  .top{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:20px;}
+  .card{
+    width:340px;max-width:92vw;background:var(--card-light);
+    padding:14px;margin-bottom:12px;border-radius:10px;
+    box-shadow:0 2px 6px rgba(0,0,0,.1);
+    display:flex;flex-direction:column;gap:8px;
+    transition:background-color .3s;
+  }
+  body.dark .card{background:var(--card-dark);}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  button,select,input{padding:5px 8px;font-size:0.95rem;}
+  .small{width:95px;}
+  .switch{position:relative;display:inline-block;width:46px;height:24px;}
+  .switch input{opacity:0;width:0;height:0;}
+  .slider{position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:#ccc;transition:.3s;border-radius:34px;}
+  .slider:before{content:"";position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:white;border-radius:50%;transition:.3s;}
+  .switch input:checked+.slider{background:var(--blue);}
+  .switch input:checked+.slider:before{transform:translateX(22px);}
+  .muted{font-size:.85rem;color:gray;}
+</style>
+</head>
+<body>
+  <img src="Ages Logo.png" alt="Ages Logo" class="logo">
+  <h1>Ages</h1>
+  <div class="top">
+    <button id="addVar">+ Add Variable</button>
+    <button id="addRotation">Add Rotation</button>
+    <div id="rotationCounter" style="align-self:center;font-weight:bold;">Total Rotations: 0</div> <!-- NEW -->
+    <button id="reset">Reset Save</button>
+    <button id="toggleTheme">Toggle Theme</button>
+  </div>
+  <div id="vars"></div>
+
+<script>
+const varsBox=document.getElementById('vars');
+const addVarBtn=document.getElementById('addVar');
+const addRotationBtn=document.getElementById('addRotation');
+const resetBtn=document.getElementById('reset');
+const toggleThemeBtn=document.getElementById('toggleTheme');
+const rotationCounter=document.getElementById('rotationCounter');
+let variables=[];
+let totalRotations=0; // NEW
+
+const STORAGE='agesVarsFinalZ2',THEME='agesThemeFinalZ2',ROTATIONS='agesRotationCount';
+function num(x){return isFinite(x)?Number(x):0;}
+function fmt(x){return (Math.round(num(x)*100)/100).toString();}
+function save(){
+  localStorage.setItem(STORAGE,JSON.stringify(variables));
+  localStorage.setItem(ROTATIONS,totalRotations); // NEW
+}
+function load(){
+  const s=localStorage.getItem(STORAGE);
+  if(s){try{variables=JSON.parse(s);}catch{variables=[];}}
+  totalRotations=parseInt(localStorage.getItem(ROTATIONS)||'0'); // NEW
+  rotationCounter.textContent=`Total Rotations: ${totalRotations}`; // NEW
+  if(localStorage.getItem(THEME)==='dark')document.body.classList.add('dark');
+  render();
+}
+
+function render(){
+  varsBox.innerHTML='';
+  variables.forEach((v,i)=>{
+    const c=document.createElement('div');c.className='card';
+    const r1=document.createElement('div');r1.className='row';
+    const name=document.createElement('input');name.type='text';name.value=v.name;
+    name.oninput=e=>{v.name=e.target.value;save();};
+    const dup=document.createElement('button');dup.textContent='Duplicate';dup.className='small';
+    dup.onclick=()=>{const copy=JSON.parse(JSON.stringify(v));copy.name+='_copy';variables.splice(i+1,0,copy);save();render();};
+    const rem=document.createElement('button');rem.textContent='Remove';rem.className='small';
+    rem.onclick=()=>{variables.splice(i,1);save();render();};
+    r1.append(name,dup,rem);
+
+    const r2=document.createElement('div');r2.className='row';
+    const totalDiv=document.createElement('div');
+    totalDiv.innerHTML=`<strong>Total:</strong> ${fmt(v.total)}`;
+    const modDiv=document.createElement('div');
+    modDiv.innerHTML=`<strong>Modifier / per-rotation:</strong> ${fmt(v.amount)}`;
+    r2.append(totalDiv,modDiv);
+
+    const r3=document.createElement('div');r3.className='row';
+    const op=document.createElement('select');
+    ['+','-','*','/','set'].forEach(x=>{
+      const o=document.createElement('option');o.value=x;o.textContent=(x==='set'?'Set':x);
+      if(v.tempOp===x)o.selected=true;op.append(o);
+    });
+    op.onchange=e=>{v.tempOp=e.target.value;save();};
+    const modVal=document.createElement('input');
+    modVal.type='number';modVal.placeholder='number for modifier';modVal.value=v.tempVal||'';
+    modVal.oninput=e=>{v.tempVal=parseFloat(e.target.value)||0;};
+    const updateBtn=document.createElement('button');
+    updateBtn.textContent='Update Modifier';updateBtn.className='small';
+    updateBtn.onclick=()=>{updateModifier(i);};
+    r3.append(op,modVal,updateBtn);
+
+    const r4=document.createElement('div');r4.className='row';
+    const addOp=document.createElement('select');
+    ['+','-','*','/','set'].forEach(x=>{
+      const o=document.createElement('option');o.value=x;o.textContent=(x==='set'?'Set':x);
+      if(v.addOp===x)o.selected=true;addOp.append(o);
+    });
+    addOp.onchange=e=>{v.addOp=e.target.value;save();};
+    const amt=document.createElement('input');
+    amt.type='number';amt.placeholder='amount';amt.value=v.amount||'';
+    amt.oninput=e=>{v.amount=parseFloat(e.target.value)||0;};
+    const applyBtn=document.createElement('button');
+    applyBtn.textContent='Apply to Total';applyBtn.className='small';
+    applyBtn.onclick=()=>{applyToTotal(i);};
+    r4.append(addOp,amt,applyBtn);
+
+    // NEW: Duration row
+    const rDur=document.createElement('div');rDur.className='row';
+    const durLabel=document.createElement('label');durLabel.textContent='Variable Duration:';
+    const durInput=document.createElement('input');
+    durInput.type='number';durInput.style.width='80px';
+    durInput.value=v.duration??'';
+    durInput.placeholder='turns';
+    durInput.oninput=e=>{v.duration=parseInt(e.target.value)||0;save();};
+    const durStatus=document.createElement('span');
+    durStatus.textContent=v.duration>0?`${v.duration} left`:"Expired";
+    rDur.append(durLabel,durInput,durStatus);
+
+    const r5=document.createElement('div');r5.className='row';
+    const toggleLabel=document.createElement('label');toggleLabel.className='switch';
+    const toggleIn=document.createElement('input');toggleIn.type='checkbox';toggleIn.checked=v.autoAdd||false;
+    const slider=document.createElement('span');slider.className='slider';
+    toggleIn.onchange=e=>{v.autoAdd=e.target.checked;save();};
+    toggleLabel.append(toggleIn,slider);
+    const span=document.createElement('span');
+    span.innerHTML=`Auto-Add Last Rotation <span class="muted">Last rotation total: ${fmt(v.last)}</span>`;
+    r5.append(toggleLabel,span);
+
+    const r6=document.createElement('div');r6.className='muted';
+    r6.textContent="Update Modifier changes the 'amount' box. Apply to Total adds that amount. Duration decreases every rotation.";
+
+    c.append(r1,r2,r3,r4,rDur,r5,r6);
+    varsBox.append(c);
+  });
+  rotationCounter.textContent=`Total Rotations: ${totalRotations}`; // NEW
+  save();
+}
+
+function addVar(){
+  variables.push({name:`Variable${variables.length+1}`,total:0,amount:0,tempOp:'+',tempVal:0,addOp:'+',autoAdd:false,last:0,duration:0});
+  save();render();
+}
+
+function updateModifier(i){
+  const v=variables[i];
+  const op=v.tempOp||'+';
+  const x=num(v.tempVal);
+  let a=num(v.amount);
+  if(op==='set'){a=x;}
+  else if(op==='+'){a+=x;}
+  else if(op==='-'){a-=x;}
+  else if(op==='*'){a*=x;}
+  else if(op==='/'){if(x!==0)a/=x;}
+  v.amount=a;
+  v.tempVal=0;
+  save();render();
+}
+
+function applyToTotal(i){
+  const v=variables[i];
+  v.total+=num(v.amount);
+  v.last=v.total;
+  save();render();
+}
+
+function addRotation(){
+  totalRotations++; // NEW
+  variables=variables.map(v=>{
+    let total=v.total+num(v.amount);
+    if(v.autoAdd)total+=num(v.last);
+    v.last=total;v.total=total;
+    if(v.duration>0)v.duration--; // NEW: countdown
+    return v;
+  });
+  save();render();
+}
+
+function resetAll(){
+  if(confirm('Reset all saved data?')){variables=[];totalRotations=0;localStorage.removeItem(STORAGE);localStorage.removeItem(ROTATIONS);render();}
+}
+
+addVarBtn.onclick=addVar;
+addRotationBtn.onclick=addRotation;
+resetBtn.onclick=resetAll;
+toggleThemeBtn.onclick=()=>{
+  document.body.classList.toggle('dark');
+  localStorage.setItem(THEME,document.body.classList.contains('dark')?'dark':'light');
+};
+load();
+</script>
+</body>
+</html>
